@@ -13,20 +13,32 @@ var redditClient = new snoowrap({
   username: process.env.redditusername,
   password: process.env.redditpassword,
 });
+
+//setting this timeout, to avoid reddit's ratelimit exception
 redditClient.config({requestDelay: 10000});
 
-function replyToRedditPost(bountyId, text) {
-    if(! (bountyId in BountyRedditIds)) {
-      setTimeout(() => {
-        return replyToRedditPost(bountyId, text);
-      }, 5000);
-    } else {
-      console.log("replying...");
-      redditClient.getSubmission(BountyRedditIds[bountyId])
-        .reply(text)
-    }
+function getRedditId(bountyId) {
+  if (bountyId in BountyRedditIds) {
+    return BountyRedditIds[bountyId];
+  }
+  return null;
 }
 
+function setRedditId(bountyId, redditId) {
+  BountyRedditIds[bountyId] = redditId;
+}
+
+function replyToRedditPost(bountyId, text) {
+  if(! getRedditId(bountyId)) {
+    setTimeout(() => {
+      return replyToRedditPost(bountyId, text);
+    }, 5000);
+  } else {
+    console.log("replying...");
+    redditClient.getSubmission(getRedditId(bountyId))
+      .reply(text)
+  }
+}
 
 const web3 = new Web3('wss://rinkeby.infura.io/ws');
 const ipfs = new IPFS({ host: 'ipfs.infura.io', port: 5001, protocol: 'https'});
@@ -80,7 +92,7 @@ var event = web3.eth.subscribe('logs', {address: "0x92f9d637355f96dc8c228827fe1b
               .then((res)=>{
                   if(res.name) {
                     console.log(res.name);
-                    BountyRedditIds[bountyId] = res.name;
+                    setRedditId(bountyId, res.name);
                   } else {
                     console.log("error, different structure of api result from reddit");
                     console.log(res);
