@@ -39,11 +39,30 @@ function replyToRedditPost(bountyId, text) {
   }
 }
 
-const web3 = new Web3('wss://rinkeby.infura.io/ws');
-const ipfs = new IPFS({ host: 'ipfs.infura.io', port: 5001, protocol: 'https'});
-const StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.rinkeby.standardBountiesAddress);
+function addhttps(url) {
+  if (!/^(f|ht)tp?:\/\//i.test(url)) {
+     url = "https://" + url;
+  }
+  return url;
+}
 
-var event = web3.eth.subscribe('logs', {address: "0x92f9d637355f96dc8c228827fe1b31f8e3477815",
+var web3;
+var StandardBounties;
+var contractAddress;
+
+if(process.env.network==="rinkeby") {
+  web3 = new Web3('wss://rinkeby.infura.io/ws');
+  StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.rinkeby.standardBountiesAddress);
+  contractAddress = json.rinkeby.standardBountiesAddress;
+} else {
+  web3 = new Web3('wss://mainnet.infura.io/ws');
+  StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.mainNet.standardBountiesAddress);
+  contractAddress = json.mainNet.standardBountiesAddress;
+}
+
+const ipfs = new IPFS({ host: 'ipfs.infura.io', port: 5001, protocol: 'https'});
+
+var event = web3.eth.subscribe('logs', {address: contractAddress,
                                         topics:[
                                           ['0xe04ac09e4a49338f40cf62a51ba721823ed22f57bc4d53c6f8684bdb1be8fd10',
                                           '0xe42c1b76efa2e9aa5b354a151174590827beb1ef94bde26787491bf4e7d68a19',
@@ -82,7 +101,7 @@ var event = web3.eth.subscribe('logs', {address: "0x92f9d637355f96dc8c228827fe1b
               if(result.description) text+=`### Details : ${result.description}   \n`;
               if(result.categories.length>0) text+=`### Categories: ${result.categories.toString()}   \n`;
               if(result.contact) text+=`### Contact info: ${result.contact}   \n`;
-              if(result.githubLink) text+=`[github](${result.githubLink})    \n`;
+              if(result.githubLink) text+=`[github](${addhttps(result.githubLink)})    \n`;
               if(result.sourceFileName && result.sourceDirectoryHash) text+=`[attached file](https://ipfs.infura.io/ipfs/${result.sourceDirectoryHash}/${result.sourceFileName})    \n`;
               text+=`Deadline is: ${new Date(bountyDetails[1]*1000).toString()}   \n`;
               text+=`[Bounty](https://beta.bounties.network/bounty/${bountyId})`
