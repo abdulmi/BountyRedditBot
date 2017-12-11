@@ -1,6 +1,5 @@
 const Web3 = require('web3');
 const IPFS = require('ipfs-mini');
-const ipfsAPI = require('ipfs-api');
 const json = require('./contract.json');
 const snoowrap = require('snoowrap');
 var redis = require("redis");
@@ -52,11 +51,22 @@ function addhttps(url) {
   return url;
 }
 
-const web3 = new Web3('wss://rinkeby.infura.io/ws');
-const ipfs = new IPFS({ host: 'ipfs.infura.io', port: 5001, protocol: 'https'});
-const StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.rinkeby.standardBountiesAddress);
+var web3;
+var StandardBounties;
+var contractAddress;
+if(process.env.network==="rinkeby") {
+  web3 = new Web3('wss://rinkeby.infura.io/ws');
+  StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.rinkeby.standardBountiesAddress);
+  contractAddress = json.rinkeby.standardBountiesAddress;
+} else {
+  web3 = new Web3('wss://mainnet.infura.io/ws');
+  StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.mainNet.standardBountiesAddress);
+  contractAddress = json.mainNet.standardBountiesAddress;
+}
 
-var event = web3.eth.subscribe('logs', {address: json.rinkeby.standardBountiesAddress,
+const ipfs = new IPFS({ host: 'ipfs.infura.io', port: 5001, protocol: 'https'});
+
+var event = web3.eth.subscribe('logs', {address: contractAddress,
                                         topics:[
                                           ['0xe04ac09e4a49338f40cf62a51ba721823ed22f57bc4d53c6f8684bdb1be8fd10',
                                           '0xe42c1b76efa2e9aa5b354a151174590827beb1ef94bde26787491bf4e7d68a19',
