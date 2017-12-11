@@ -3,8 +3,9 @@ const IPFS = require('ipfs-mini');
 const ipfsAPI = require('ipfs-api');
 const json = require('./contract.json');
 const snoowrap = require('snoowrap');
-var BountyRedditIds = {};
+var redis = require("redis");
 
+var redisClient = redis.createClient();
 // //Reddit config
 var redditClient = new snoowrap({
   userAgent: 'Bounties-Network-Bot',
@@ -17,34 +18,45 @@ var redditClient = new snoowrap({
 //setting this timeout, to avoid reddit's ratelimit exception
 redditClient.config({requestDelay: 10000});
 
-function getRedditId(bountyId) {
-  if (bountyId in BountyRedditIds) {
-    return BountyRedditIds[bountyId];
-  }
-  return null;
+function getRedditId(bountyId, cb) {
+  redisClient.get(bountyId, function(err, reply) {
+    if(err) console.log(`redis error, ${err}`);
+    else return cb(reply);
+  });
 }
 
-function setRedditId(bountyId, redditId) {
-  BountyRedditIds[bountyId] = redditId;
+function setRedditId(bountyId, redditId, cb) {
+  redisClient.set(bountyId.toString(), redditId.toString(), (err)=>{
+    return cb();
+  });
 }
 
 function replyToRedditPost(bountyId, text) {
-  if(! getRedditId(bountyId)) {
-    setTimeout(() => {
-      return replyToRedditPost(bountyId, text);
-    }, 5000);
-  } else {
-    console.log("replying...");
-    redditClient.getSubmission(getRedditId(bountyId))
-      .reply(text)
+  getRedditId(bountyId, (redditId)=>{
+    if(!redditId) {
+      setTimeout(() => {
+        return replyToRedditPost(bountyId, text);
+      }, 5000);
+    } else {
+      console.log("replying...");
+      redditClient.getSubmission(redditId)
+        .reply(text)
+    }
+  })
+}
+
+function addhttps(url) {
+  if (!/^(f|ht)tp?:\/\//i.test(url)) {
+     url = "https://" + url;
   }
+  return url;
 }
 
 const web3 = new Web3('wss://rinkeby.infura.io/ws');
 const ipfs = new IPFS({ host: 'ipfs.infura.io', port: 5001, protocol: 'https'});
 const StandardBounties = new web3.eth.Contract(json.interfaces.StandardBounties, json.rinkeby.standardBountiesAddress);
 
-var event = web3.eth.subscribe('logs', {address: "0x92f9d637355f96dc8c228827fe1b31f8e3477815",
+var event = web3.eth.subscribe('logs', {address: json.rinkeby.standardBountiesAddress,
                                         topics:[
                                           ['0xe04ac09e4a49338f40cf62a51ba721823ed22f57bc4d53c6f8684bdb1be8fd10',
                                           '0xe42c1b76efa2e9aa5b354a151174590827beb1ef94bde26787491bf4e7d68a19',
@@ -72,42 +84,42 @@ var event = web3.eth.subscribe('logs', {address: "0x92f9d637355f96dc8c228827fe1b
     if(data.topics[0]==="0xe04ac09e4a49338f40cf62a51ba721823ed22f57bc4d53c6f8684bdb1be8fd10"){
       console.log("creating a new bounty");
       console.log(`getting bounty details from IPFS for bounty:  ${bountyId}`);
-      console.log(BountyRedditIds);
-      const test = bountyId in BountyRedditIds;
-      if(!test){
-        StandardBounties.methods.getBounty(bountyId).call({},(err, bountyDetails)=>{
-          StandardBounties.methods.getBountyData(bountyId).call({},(err, ipfsHash)=> {
-            ipfs.catJSON(ipfsHash, (err, result)=> {
-              console.log(result);
-              var text="";
-              if(result.description) text+=`### Details : ${result.description}   \n`;
-              if(result.categories.length>0) text+=`### Categories: ${result.categories.toString()}   \n`;
-              if(result.contact) text+=`### Contact info: ${result.contact}   \n`;
-              if(result.githubLink) text+=`[github](${result.githubLink})    \n`;
-              if(result.sourceFileName && result.sourceDirectoryHash) text+=`[attached file](https://ipfs.infura.io/ipfs/${result.sourceDirectoryHash}/${result.sourceFileName})    \n`;
-              text+=`Deadline is: ${new Date(bountyDetails[1]*1000).toString()}   \n`;
-              text+=`[Bounty](https://beta.bounties.network/bounty/${bountyId})`
-              redditClient.getSubreddit('bounties')
-              .submitSelfpost({title: `New Bounty: ${result.title}`, text: text})
-              .then((res)=>{
-                  if(res.name) {
-                    console.log(res.name);
-                    setRedditId(bountyId, res.name);
-                  } else {
-                    console.log("error, different structure of api result from reddit");
-                    console.log(res);
-                  }
-              })
-              .catch((err)=>{
-                  console.log(`error ${err}`);
-              })
-              
+      getRedditId(bountyId, (redditId)=>{
+        if(!redditId){
+          StandardBounties.methods.getBounty(bountyId).call({},(err, bountyDetails)=>{
+            StandardBounties.methods.getBountyData(bountyId).call({},(err, ipfsHash)=> {
+              ipfs.catJSON(ipfsHash, (err, result)=> {
+                console.log(result);
+                var text="";
+                if(result.description) text+=`### Details : ${result.description}   \n`;
+                if(result.categories.length>0) text+=`### Categories: ${result.categories.toString()}   \n`;
+                if(result.contact) text+=`### Contact info: ${result.contact}   \n`;
+                if(result.githubLink) text+=`[github](${addhttps(result.githubLink)})    \n`;
+                if(result.sourceFileName && result.sourceDirectoryHash) text+=`[attached file](https://ipfs.infura.io/ipfs/${result.sourceDirectoryHash}/${result.sourceFileName})    \n`;
+                text+=`Deadline is: ${new Date(bountyDetails[1]*1000).toString()}   \n`;
+                text+=`[Bounty](https://beta.bounties.network/bounty/${bountyId})`
+                redditClient.getSubreddit('bounties')
+                .submitSelfpost({title: `New Bounty: ${result.title}`, text: text})
+                .then((res)=>{
+                    if(res.name) {
+                      console.log(res.name);
+                      setRedditId(bountyId, res.name, ()=>console.log(`bounty name: ${res.name}`));
+                    } else {
+                      console.log("error, different structure of api result from reddit");
+                      console.log(res);
+                    }
+                })
+                .catch((err)=>{
+                    console.log(`error ${err}`);
+                })
+                
+              });
             });
           });
-        });
-      } else {
-          console.log(`error, the new bountyid is already in the map. bountyId = ${bountyId}`);
-      } 
+        } else {
+            console.log(`error, the new bountyid already exists. bountyId = ${bountyId}`);
+        } 
+      })
       //this hex is for accepted submission      
     } else if(data.topics[0]==="0x7b9dbf959e54bb2ff6e9d505ef00d6b7fb3ce97880816181aecca973c1da31e6") {
       console.log("accepting a submission");
