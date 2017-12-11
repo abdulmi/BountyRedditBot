@@ -1,6 +1,5 @@
 const Web3 = require('web3');
 const IPFS = require('ipfs-mini');
-const ipfsAPI = require('ipfs-api');
 const json = require('./contract.json');
 const snoowrap = require('snoowrap');
 var BountyRedditIds = {};
