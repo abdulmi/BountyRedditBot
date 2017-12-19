@@ -11,6 +11,8 @@ Reddit bot for https://beta.bounties.network/ for the bounties subreddit at http
 `export clientSecret= *your-client-secret*`  
 `export username= *your-client-username*`  
 `export password= *your-client-password*`  
+if you want to listen to rinkeby test network then set environment variable to rinkeby:   
+`export network=rinkeby`  
 
 ### 3- run the start script
 `npm run start`  
