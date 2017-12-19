@@ -1,5 +1,5 @@
 # BountyRedditBot
-Reddit bot for https://beta.bounties.network/ for the bounties subreddit at reddit.com/r/bounties
+Reddit bot for https://beta.bounties.network/ for the bounties subreddit at https://reddit.com/r/bounties
 
 ## Steps to run the bot : 
 ### 1- first clone the repo somewhere 
